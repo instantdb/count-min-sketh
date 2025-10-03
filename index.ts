@@ -24,7 +24,8 @@ function stem(word: string) {
 
 function toWords(text: string): string[] {
   return text
-    .split(" ")
+    .split("\n")
+    .flatMap((line) => line.split(" "))
     .map(stem)
     .filter((w) => w);
 }
@@ -63,6 +64,7 @@ const sketch = createSketch({ rows: 2, columns: 5 });
 
 console.log("created:", sketch);
 
+// 5. Implement add
 function add({ rows, columns, buckets }: Sketch, word: string) {
   for (let hashIdx = 0; hashIdx < rows; hashIdx++) {
     const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
@@ -72,9 +74,10 @@ function add({ rows, columns, buckets }: Sketch, word: string) {
   }
 }
 
-add(sketch, "castle");
+add(sketch, stem("castle"));
 console.log("after castle", sketch);
 
+// 6. Implement checks
 function check({ rows, columns, buckets }: Sketch, word: string): number {
   let approx = Infinity;
   for (let hashIdx = 0; hashIdx < rows; hashIdx++) {
@@ -86,4 +89,32 @@ function check({ rows, columns, buckets }: Sketch, word: string): number {
   return approx;
 }
 
-console.log("check castle", check(sketch, "castle"));
+console.log("check castle", check(sketch, stem("castle")));
+
+// 7. Get exact counts for _all_ of wodehouse!
+
+const allWodehouse = fs.readFileSync("wodehouse-full.txt", "utf-8");
+const allWords = toWords(allWodehouse);
+const allExactCounts = countWords(allWords);
+
+console.log("exact beetle", allExactCounts[stem("beetle")]);
+
+// 8. Now let's try out our sketches!
+
+const allSketch = createSketch({ rows: 10, columns: 4000 });
+for (const word of allWords) {
+  add(allSketch, stem(word));
+}
+
+console.log("allSketch beetle", check(allSketch, stem("beetle")));
+
+// Let's save some results, so we can see how they look
+fs.writeFileSync(
+  "allExactCounts.json",
+  JSON.stringify(allExactCounts, null, 2),
+);
+
+fs.writeFileSync(
+  "allSketch.json",
+  JSON.stringify([...allSketch.buckets], null, 2),
+);
