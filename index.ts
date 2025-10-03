@@ -41,3 +41,49 @@ function countWords(words: string[]): { [w: string]: number } {
 const exactCounts = countWords(toWords(wodehouse));
 
 console.log("> exactCounts", exactCounts);
+
+// 4. Create a sketch
+type Sketch = {
+  width: number;
+  height: number;
+  buckets: Uint32Array;
+};
+
+function createSketch({
+  width,
+  height,
+}: {
+  width: number;
+  height: number;
+}): Sketch {
+  return { width, height, buckets: new Uint32Array(width * height) };
+}
+
+const sketch = createSketch({ width: 5, height: 2 });
+
+console.log("created:", sketch);
+
+function add({ width, height, buckets }: Sketch, word: string) {
+  for (let hashIdx = 0; hashIdx < height; hashIdx++) {
+    const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
+    const localIdx = Number(hash % BigInt(width));
+    const globalIdx = hashIdx * width + localIdx;
+    buckets[globalIdx]!++;
+  }
+}
+
+add(sketch, "castle");
+console.log("after castle", sketch);
+
+function check({ width, height, buckets }: Sketch, word: string): number {
+  let approx = Infinity;
+  for (let hashIdx = 0; hashIdx < height; hashIdx++) {
+    const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
+    const localIdx = Number(hash % BigInt(width));
+    const globalIdx = hashIdx * width + localIdx;
+    approx = Math.min(approx, buckets[globalIdx]!);
+  }
+  return approx;
+}
+
+console.log("check castle", check(sketch, "castle"));
