@@ -44,30 +44,30 @@ console.log("> exactCounts", exactCounts);
 
 // 4. Create a sketch
 type Sketch = {
-  width: number;
-  height: number;
+  rows: number;
+  columns: number;
   buckets: Uint32Array;
 };
 
 function createSketch({
-  width,
-  height,
+  rows,
+  columns,
 }: {
-  width: number;
-  height: number;
+  rows: number;
+  columns: number;
 }): Sketch {
-  return { width, height, buckets: new Uint32Array(width * height) };
+  return { rows, columns, buckets: new Uint32Array(rows * columns) };
 }
 
-const sketch = createSketch({ width: 5, height: 2 });
+const sketch = createSketch({ rows: 2, columns: 5 });
 
 console.log("created:", sketch);
 
-function add({ width, height, buckets }: Sketch, word: string) {
-  for (let hashIdx = 0; hashIdx < height; hashIdx++) {
+function add({ rows, columns, buckets }: Sketch, word: string) {
+  for (let hashIdx = 0; hashIdx < rows; hashIdx++) {
     const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
-    const localIdx = Number(hash % BigInt(width));
-    const globalIdx = hashIdx * width + localIdx;
+    const columnIdx = Number(hash % BigInt(columns));
+    const globalIdx = hashIdx * columns + columnIdx;
     buckets[globalIdx]!++;
   }
 }
@@ -75,12 +75,12 @@ function add({ width, height, buckets }: Sketch, word: string) {
 add(sketch, "castle");
 console.log("after castle", sketch);
 
-function check({ width, height, buckets }: Sketch, word: string): number {
+function check({ rows, columns, buckets }: Sketch, word: string): number {
   let approx = Infinity;
-  for (let hashIdx = 0; hashIdx < height; hashIdx++) {
+  for (let hashIdx = 0; hashIdx < rows; hashIdx++) {
     const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
-    const localIdx = Number(hash % BigInt(width));
-    const globalIdx = hashIdx * width + localIdx;
+    const columnIdx = Number(hash % BigInt(columns));
+    const globalIdx = hashIdx * columns + columnIdx;
     approx = Math.min(approx, buckets[globalIdx]!);
   }
   return approx;
