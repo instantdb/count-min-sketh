@@ -1,9 +1,9 @@
 import fs from "fs";
 
-// 1. Read the file
+// Read the file
 const wodehouse = fs.readFileSync("wodehouse.txt", "utf-8");
 
-// 2. Split into words
+// Split into words
 function stem(word: string) {
   word = word.toLowerCase().replaceAll(/[^a-z]/g, "");
   if (word.endsWith("ing") && word.length > 4) {
@@ -30,7 +30,7 @@ function toWords(text: string): string[] {
     .filter((w) => w);
 }
 
-// 3. Get exact counts
+// Get exact counts
 function countWords(words: string[]): { [w: string]: number } {
   const result: { [w: string]: number } = {};
   for (const word of words) {
@@ -41,9 +41,9 @@ function countWords(words: string[]): { [w: string]: number } {
 
 const exactCounts = countWords(toWords(wodehouse));
 
-console.log("> exactCounts", exactCounts);
+console.log("exactCounts", exactCounts);
 
-// 4. Create a sketch
+// Create a sketch
 type Sketch = {
   rows: number;
   columns: number;
@@ -64,12 +64,12 @@ const sketch = createSketch({ rows: 2, columns: 5 });
 
 console.log("created:", sketch);
 
-// 5. Implement add
+// Implement add
 function add({ rows, columns, buckets }: Sketch, word: string) {
-  for (let hashIdx = 0; hashIdx < rows; hashIdx++) {
-    const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
+  for (let rowIdx = 0; rowIdx < rows; rowIdx++) {
+    const hash = Bun.hash.xxHash3(word, BigInt(rowIdx));
     const columnIdx = Number(hash % BigInt(columns));
-    const globalIdx = hashIdx * columns + columnIdx;
+    const globalIdx = rowIdx * columns + columnIdx;
     buckets[globalIdx]!++;
   }
 }
@@ -77,13 +77,13 @@ function add({ rows, columns, buckets }: Sketch, word: string) {
 add(sketch, stem("castle"));
 console.log("after castle", sketch);
 
-// 6. Implement checks
+// Implement check
 function check({ rows, columns, buckets }: Sketch, word: string): number {
   let approx = Infinity;
-  for (let hashIdx = 0; hashIdx < rows; hashIdx++) {
-    const hash = Bun.hash.xxHash3(word, BigInt(hashIdx));
+  for (let rowIdx = 0; rowIdx < rows; rowIdx++) {
+    const hash = Bun.hash.xxHash3(word, BigInt(rowIdx));
     const columnIdx = Number(hash % BigInt(columns));
-    const globalIdx = hashIdx * columns + columnIdx;
+    const globalIdx = rowIdx * columns + columnIdx;
     approx = Math.min(approx, buckets[globalIdx]!);
   }
   return approx;
@@ -91,7 +91,7 @@ function check({ rows, columns, buckets }: Sketch, word: string): number {
 
 console.log("check castle", check(sketch, stem("castle")));
 
-// 7. Get exact counts for _all_ of wodehouse!
+// Get exact counts for _all_ of wodehouse!
 
 const allWodehouse = fs.readFileSync("wodehouse-full.txt", "utf-8");
 const allWords = toWords(allWodehouse);
@@ -99,7 +99,7 @@ const allExactCounts = countWords(allWords);
 
 console.log("exact beetle", allExactCounts[stem("beetle")]);
 
-// 8. Now let's try out our sketches!
+// Now let's try out our sketches!
 
 const allSketch = createSketch({ rows: 10, columns: 4000 });
 for (const word of allWords) {
@@ -107,6 +107,75 @@ for (const word of allWords) {
 }
 
 console.log("allSketch beetle", check(allSketch, stem("beetle")));
+
+// Let's use errorRate and confidence
+
+function sketchWithBounds({
+  errorRate,
+  confidence,
+}: {
+  errorRate: number;
+  confidence: number;
+}): Sketch {
+  const columns = Math.ceil(2 / errorRate);
+  const rows = Math.ceil(Math.log(1 - confidence) / Math.log(0.5));
+  return createSketch({ rows, columns });
+}
+
+const withBounds = sketchWithBounds({
+  errorRate: 0.0001,
+  confidence: 0.99,
+});
+
+console.log("withBounds", withBounds.columns, withBounds.rows);
+
+// Let's try compression
+
+console.log("numBuckets", withBounds.buckets.length);
+
+const compressed = await Bun.zstdCompress(withBounds.buckets);
+
+console.log(
+  "original size",
+  withBounds.buckets.byteLength,
+  "compressed size",
+  compressed.byteLength,
+);
+
+// Let's create a PNG representation of our sketch
+
+import { PNG } from "pngjs";
+
+function createPNG({
+  width,
+  buffer,
+}: {
+  width: number;
+  buffer: Buffer;
+}): Buffer {
+  const bytesPerPixel = 4; // RGBA
+  const height = Math.ceil(buffer.length / (width * bytesPerPixel));
+  const png = new PNG({
+    width,
+    height,
+    colorType: 6, // RGBA
+  });
+
+  for (let i = 0; i < png.data.length; i++) {
+    png.data[i] = buffer[i] ?? 0;
+  }
+
+  return PNG.sync.write(png);
+}
+
+const compressedSketch = await Bun.zstdCompress(allSketch.buckets);
+
+console.log("allSketchCompressed", compressedSketch.byteLength);
+
+fs.writeFileSync(
+  "compressedSketch.png",
+  createPNG({ width: 100, buffer: compressedSketch }),
+);
 
 // Let's save some results, so we can see how they look
 fs.writeFileSync(
