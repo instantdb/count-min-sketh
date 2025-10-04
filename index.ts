@@ -174,7 +174,7 @@ console.log("allSketchCompressed", compressedSketch.byteLength);
 
 fs.writeFileSync(
   "compressedSketch.png",
-  createPNG({ width: 100, buffer: compressedSketch }),
+  createPNG({ width: 150, buffer: compressedSketch }),
 );
 
 // Let's save some results, so we can see how they look
